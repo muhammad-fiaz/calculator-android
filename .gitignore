@@ -1,0 +1,45 @@
+# Build artifacts
+build/
+app/build/
+bin/
+gen/
+out/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# IntelliJ/Android Studio
+.idea/
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/deploymentTargetSelector.xml
+.idea/appInsightsSettings.xml
+*.iml
+*.iws
+*.ipr
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Local configuration
+local.properties
+
+# Secrets & Keys
+*.jks
+*.keystore
+*.p12
+*.key
+**/google-services.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log

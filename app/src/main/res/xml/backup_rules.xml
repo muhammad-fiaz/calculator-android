@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+   <include domain="database" path="calculator_pro.db" />
+   <include domain="database" path="calculator_pro.db-shm" />
+   <include domain="database" path="calculator_pro.db-wal" />
+   <include domain="file" path="datastore/settings.preferences_pb" />
+</full-backup-content>
