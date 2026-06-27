@@ -16,13 +16,7 @@
 [![GitHub sponsor](https://img.shields.io/badge/sponsor-Muhammad%20Fiaz-blue)](https://github.com/sponsors/muhammad-fiaz)
 [![Get it on Google Play](https://img.shields.io/badge/Get%20it%20on-Google%20Play-brightgreen)](https://play.google.com/store/apps/details?id=dev.fiaz.calculator)
 
-<div align="center">
-<h3> Join our Discord Community: </h3>
 
-[![Join Our Discord](https://img.shields.io/badge/Discord-Join_us!-blue?style=flat&logo=discord)](https://discord.com/invite/zvqm4VZ3Pk)
-
-</div>
-<br/>
 </div>
 
 Calculator is your essential tool for all your mathematical needs. With a clean and user-friendly interface built with **Jetpack Compose** and **Material Design 3**, this app is designed to make both simple and complex calculations easy and efficient. Whether you're a student, professional, or just need quick calculations on the go, Calculator provides accurate results every time. Powered by modern Android technologies, it offers a smooth and reliable experience across all your Android devices. Simplify your math with Calculator!
@@ -51,6 +45,9 @@ Calculator is your essential tool for all your mathematical needs. With a clean 
 - **State Management**: Efficient state management using ViewModel and StateFlow
 - **Error Handling**: Robust error handling for invalid expressions
 - **Performance Optimized**: Smooth animations and fast calculations
+- **Server-less Architecture**: Purely local application with no external dependencies
+- **Offline First**: Full functionality without internet connection
+- **Privacy Focused**: No user data collection or external tracking
 
 ## Getting Started
 
