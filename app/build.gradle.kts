@@ -1,3 +1,6 @@
+import com.android.build.api.dsl.ApplicationExtension
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,7 +9,7 @@ plugins {
     alias(libs.plugins.aboutlibraries)
 }
 
-android {
+configure<ApplicationExtension> {
     namespace = "dev.fiaz.calculator"
     compileSdk = 37
 
@@ -20,7 +23,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
 
         vectorDrawables {
@@ -39,6 +42,26 @@ android {
         buildConfigField("String", "SPONSOR_URL", "\"https://github.com/sponsors/muhammad-fiaz\"")
     }
 
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use {
+            localProperties.load(it)
+        }
+    }
+
+    signingConfigs {
+        create("uploadConfig") {
+            val fileProp = localProperties.getProperty("signing.upload.storeFile")
+            if (fileProp != null) {
+                storeFile = rootProject.file(fileProp)
+                storePassword = localProperties.getProperty("signing.upload.storePassword")
+                keyAlias = localProperties.getProperty("signing.upload.keyAlias")
+                keyPassword = localProperties.getProperty("signing.upload.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -51,6 +74,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val fileProp = localProperties.getProperty("signing.upload.storeFile")
+            if (fileProp != null) {
+                signingConfig = signingConfigs.getByName("uploadConfig")
+            }
         }
     }
     compileOptions {
@@ -65,11 +92,10 @@ android {
 
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes.add("/META-INF/{AL2.0,LGPL2.1}")
         }
     }
-    ndkVersion = "30.0.14904198 rc1"
-    buildToolsVersion = "37.0.0"
+    ndkVersion = "28.0.12674033"
 }
 
 kotlin {
@@ -115,6 +141,7 @@ dependencies {
     implementation(libs.play.review.ktx)
 
     implementation(libs.kotlinx.coroutines.android)
+
 
     testImplementation(libs.junit)
 

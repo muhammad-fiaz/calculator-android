@@ -70,6 +70,9 @@ class CalculatorExpressionEvaluatorTest {
 
     private fun assertSuccess(expression: String, expected: String) {
         val result = evaluator.evaluate(expression)
+        if (result is EvaluationResult.Error) {
+            println("DEBUG: Expression $expression failed with error: ${result.error}")
+        }
         assertTrue("Expected success for expression: $expression", result is EvaluationResult.Success)
         assertEquals(expected, (result as EvaluationResult.Success).value)
     }

@@ -2,7 +2,8 @@
 
 package dev.fiaz.calculator.ui.screens
 
-import android.app.Activity
+import android.content.ClipData
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -44,19 +45,25 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -77,8 +84,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -99,16 +106,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -159,12 +169,13 @@ fun CalculatorScreen(
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     var showMenu by remember { mutableStateOf(false) }
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
 
     LaunchedEffect(settingsState.appSettings.calculationCount) {
         val count = settingsState.appSettings.calculationCount
-        if (count > 0 && count % 15 == 0 && activity != null) {
-            settingsViewModel.launchReview(activity) {
+        val act = activity
+        if (count > 0 && count % 15 == 0 && act != null) {
+            settingsViewModel.launchReview(act) {
                 // Fallback silently
             }
         }
@@ -324,7 +335,7 @@ private fun CalculatorDisplay(
     val keyboardController = LocalSoftwareKeyboardController.current
     var isResultExpanded by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     
     val expressionValue = remember(uiState.expression, uiState.cursorPosition) {
         TextFieldValue(
@@ -333,31 +344,34 @@ private fun CalculatorDisplay(
         )
     }
 
+    LaunchedEffect(uiState.expression) {
+        scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
     val hasOperator = uiState.expression.any { it in charArrayOf('+', '-', '×', '÷', '^', '%', '(', ')', '√', '!') }
-    val shouldShowResultLine = uiState.errorMessage != null || uiState.justEvaluated || (uiState.result.isNotBlank() && uiState.result != uiState.expression) || hasOperator
+    val shouldShowResultLine = (uiState.errorMessage != null && uiState.justEvaluated) || (uiState.result.isNotBlank() && uiState.result != uiState.expression) || hasOperator
     val outputText = when {
-        uiState.errorMessage != null -> uiState.errorMessage
-        shouldShowResultLine && uiState.result.isNotBlank() -> uiState.result
+        uiState.errorMessage != null && uiState.justEvaluated -> uiState.errorMessage
+        shouldShowResultLine && uiState.result.isNotBlank() && uiState.result != uiState.expression -> uiState.result
         else -> ""
     }
     
-    // Apple-style dynamic font sizing (even larger)
-    val baseInputSize = if (isLargeScreen) 64 else 48
-    val baseOutputSize = if (isLargeScreen) 96 else 80
+    // Dynamic fonts: primary input/result is larger, live preview is smaller
+    val baseInputSize = if (isLargeScreen) 48 else 36
+    val baseOutputSize = if (isLargeScreen) 80 else 64
     
     val inputFontSize = when {
-        uiState.expression.length > 25 -> (baseInputSize * 0.4).sp
-        uiState.expression.length > 15 -> (baseInputSize * 0.6).sp
-        uiState.expression.length > 8 -> (baseInputSize * 0.8).sp
-        else -> baseInputSize.sp
+        uiState.expression.length > 25 -> (baseOutputSize * 0.4).sp
+        uiState.expression.length > 15 -> (baseOutputSize * 0.6).sp
+        uiState.expression.length > 8 -> (baseOutputSize * 0.8).sp
+        else -> baseOutputSize.sp
     }
     
     val outputFontSize = when {
-        uiState.justEvaluated -> (baseOutputSize * 1.2).sp
-        outputText.length > 20 -> (baseOutputSize * 0.4).sp
-        outputText.length > 12 -> (baseOutputSize * 0.6).sp
-        outputText.length > 6 -> (baseOutputSize * 0.8).sp
-        else -> baseOutputSize.sp
+        outputText.length > 25 -> (baseInputSize * 0.4).sp
+        outputText.length > 15 -> (baseInputSize * 0.6).sp
+        outputText.length > 8 -> (baseInputSize * 0.8).sp
+        else -> baseInputSize.sp
     }
 
     Column(
@@ -365,120 +379,111 @@ private fun CalculatorDisplay(
         verticalArrangement = if (verticalAlignment == Alignment.Top) Arrangement.Top else Arrangement.Bottom,
         horizontalAlignment = Alignment.End
     ) {
-        // Result Area (On Top)
-        AnimatedContent(
-            targetState = outputText,
-            transitionSpec = {
-                if (uiState.justEvaluated) {
-                    (slideInVertically { height -> height } + fadeIn()) togetherWith
-                            (slideOutVertically { height -> -height } + fadeOut())
-                } else {
-                    fadeIn() togetherWith fadeOut()
-                }.using(SizeTransform(clip = false))
-            },
-            label = "resultAnimation"
-        ) { text ->
-            if (text.isNotBlank()) {
-                val resultScrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .combinedClickable(
-                            onClick = { isResultExpanded = !isResultExpanded },
-                            onLongClick = {
-                                clipboardManager.setText(AnnotatedString(text))
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Result copied")
-                                }
-                            }
-                        ),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    SelectionContainer {
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.displayLarge.copy(
-                                color = when {
-                                    uiState.errorMessage != null -> MaterialTheme.colorScheme.error
-                                    uiState.justEvaluated -> MaterialTheme.colorScheme.primary
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                },
-                                fontWeight = if (uiState.justEvaluated) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = outputFontSize,
-                                textAlign = TextAlign.End,
-                                letterSpacing = (-1).sp
-                            ),
-                            modifier = if (isResultExpanded) Modifier.horizontalScroll(resultScrollState) else Modifier,
-                            maxLines = 1,
-                            overflow = if (isResultExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
-                        )
+        // Expression Area (On Top)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(scrollState)
+                .combinedClickable(
+                    onLongClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                ClipEntry(
+                                    ClipData.newPlainText(
+                                        "Calculation Value",
+                                        uiState.expression
+                                    )
+                                )
+                            )
+                            snackbarHostState.showSnackbar("Copied to clipboard")
+                        }
+                    },
+                    onClick = {}
+                ),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BasicTextField(
+                value = expressionValue,
+                onValueChange = { updated ->
+                    val sanitized = sanitizeManualInput(updated.text)
+                    val cursor = updated.selection.start.coerceIn(0, sanitized.length)
+                    onExpressionEdited(sanitized, cursor)
+                },
+                singleLine = true,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.NumberPassword,
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.None,
+                    showKeyboardOnFocus = false
+                ),
+                textStyle = MaterialTheme.typography.displayLarge.copy(
+                    color = if (uiState.justEvaluated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (uiState.justEvaluated) FontWeight.Bold else FontWeight.Light,
+                    fontSize = inputFontSize,
+                    textAlign = TextAlign.End,
+                    letterSpacing = (-1).sp
+                ),
+                modifier = Modifier
+                    .wrapContentWidth(unbounded = true)
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            keyboardController?.hide()
+                        }
                     }
-                }
-            }
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Expression Area (Below Result)
-        AnimatedVisibility(
-            visible = !uiState.justEvaluated || uiState.expression != uiState.result,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Row(
+        // Result Area (Below Expression)
+        if (outputText.isNotBlank()) {
+            val resultScrollState = rememberScrollState()
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(scrollState)
-                    .draggable(
-                        orientation = Orientation.Horizontal,
-                        state = rememberDraggableState { delta ->
-                            if (delta < -20) { // Swipe left to backspace (iOS style)
-                                onButtonPressed("⌫")
-                            }
-                        }
-                    )
+                    .clip(RoundedCornerShape(24.dp))
                     .combinedClickable(
+                        onClick = { isResultExpanded = !isResultExpanded },
                         onLongClick = {
-                            onExpressionEdited(uiState.expression, uiState.expression.length)
-                        },
-                        onClick = {}
-                    ),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BasicTextField(
-                    value = expressionValue,
-                    onValueChange = { updated ->
-                        val sanitized = sanitizeManualInput(updated.text)
-                        val cursor = updated.selection.start.coerceIn(0, sanitized.length)
-                        onExpressionEdited(sanitized, cursor)
-                    },
-                    singleLine = true,
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrectEnabled = false,
-                        imeAction = ImeAction.None,
-                        showKeyboardOnFocus = false
-                    ),
-                    textStyle = MaterialTheme.typography.displayLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Light,
-                        fontSize = inputFontSize,
-                        textAlign = TextAlign.End,
-                        letterSpacing = (-1).sp
-                    ),
-                    modifier = Modifier
-                        .wrapContentWidth(unbounded = true)
-                        .onFocusChanged {
-                            if (it.isFocused) {
-                                keyboardController?.hide()
+                            scope.launch {
+                                clipboard.setClipEntry(
+                                    ClipEntry(
+                                        ClipData.newPlainText(
+                                            "Calculation Result",
+                                            outputText
+                                        )
+                                    )
+                                )
+                                snackbarHostState.showSnackbar("Result copied")
                             }
                         }
-                )
+                    ),
+                horizontalAlignment = Alignment.End
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = outputText,
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            color = when {
+                                uiState.errorMessage != null -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            },
+                            fontWeight = FontWeight.Medium,
+                            fontSize = outputFontSize,
+                            textAlign = TextAlign.End,
+                            letterSpacing = (-1).sp
+                        ),
+                        modifier = if (isResultExpanded) Modifier.horizontalScroll(resultScrollState) else Modifier,
+                        maxLines = 1,
+                        overflow = if (isResultExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
+                    )
+                }
             }
+        } else {
+            Spacer(modifier = Modifier.height(baseInputSize.dp))
         }
     }
 }
@@ -521,6 +526,15 @@ private fun CalculatorPad(
                 row.forEach { label ->
                     CalculatorButton(
                         label = label,
+                        icon = when (label) {
+                            "⌫" -> Icons.AutoMirrored.Filled.Backspace
+                            "+" -> Icons.Default.Add
+                            "-" -> Icons.Default.Remove
+                            "×" -> Icons.Default.Close
+                            "%" -> Icons.Default.Percent
+                            "=" -> Icons.Default.DragHandle
+                            else -> null
+                        },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         backgroundColor = when (label) {
                             "=" -> MaterialTheme.colorScheme.primary
@@ -669,12 +683,16 @@ fun SettingsScreen(
     onLegal: () -> Unit,
     onLicenses: () -> Unit
 ) {
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
-    LaunchedEffect(Unit) { activity?.let { viewModel.refreshAppInfo(it) } }
+    LaunchedEffect(Unit) {
+        activity?.let {
+            viewModel.refreshAppInfo(it)
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -692,25 +710,40 @@ fun SettingsScreen(
         ) {
             item { SettingsCard(title = "Appearance", subtitle = "Customize app theme and visual style", icon = Icons.Default.Palette, onClick = onAppearance) }
             item { SettingsCard(title = "Customization", subtitle = "Adjust haptics, vibration and default behavior", icon = Icons.Default.Tune, onClick = onCustomization) }
-            item { SettingsCard(title = "About", subtitle = "View developer info and app version", icon = Icons.Default.Info, onClick = onAbout) }
+            item { 
+                SettingsCard(
+                    title = "Share App", 
+                    subtitle = "Recommend Calculator Pro to others", 
+                    icon = Icons.Default.Share, 
+                    onClick = { 
+                        val act = activity
+                        if (act != null) {
+                            viewModel.shareApp(act)
+                        }
+                    }
+                ) 
+            }
             item {
                 SettingsCard(
-                    title = "Report an Issue",
-                    subtitle = "Found a bug? Help us fix it on GitHub",
-                    icon = Icons.Default.Gavel,
-                    onClick = { uriHandler.openUri("https://github.com/muhammad-fiaz/calculator-android/issues/new/choose") }
+                    title = "Write a Review",
+                    subtitle = "Rate your experience on Play Store",
+                    icon = Icons.Default.RateReview,
+                    onClick = {
+                        val act = activity
+                        if (act != null) {
+                            viewModel.launchReview(act) { scope.launch { snackbarHostState.showSnackbar("Review unavailable") } }
+                        }
+                    }
                 )
             }
-            item { SettingsCard(title = "Legal", subtitle = "Privacy policy and terms of service", icon = Icons.Default.Gavel, onClick = onLegal) }
-            item { SettingsCard(title = "Open Source Licenses", subtitle = "Software libraries used in development", icon = Icons.Default.List, onClick = onLicenses) }
-            item { SettingsCard(title = "Share App", subtitle = "Recommend Calculator Pro to others", icon = Icons.Default.Share, onClick = { activity?.let { viewModel.shareApp(it) } }) }
             item {
                 SettingsCard(
                     title = "Check for Updates",
                     subtitle = "Ensure you are running the latest version",
                     icon = Icons.Default.Update,
                     onClick = {
-                        activity?.let { act ->
+                        val act = activity
+                        if (act != null) {
                             viewModel.requestUpdateInfo(
                                 onAvailable = { info ->
                                     viewModel.updateManager.startUpdateFlowForResult(info, act, AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(), 999)
@@ -721,16 +754,15 @@ fun SettingsScreen(
                     }
                 )
             }
+            item { SettingsCard(title = "About", subtitle = "View developer info and app version", icon = Icons.Default.Info, onClick = onAbout) }
+            item { SettingsCard(title = "Open Source Licenses", subtitle = "Software libraries used in development", icon = Icons.AutoMirrored.Filled.List, onClick = onLicenses) }
+            item { SettingsCard(title = "Legal", subtitle = "Privacy policy and terms of service", icon = Icons.Default.Gavel, onClick = onLegal) }
             item {
                 SettingsCard(
-                    title = "Write a Review",
-                    subtitle = "Rate your experience on Play Store",
-                    icon = Icons.Default.RateReview,
-                    onClick = {
-                        activity?.let { act ->
-                            viewModel.launchReview(act) { scope.launch { snackbarHostState.showSnackbar("Review unavailable") } }
-                        }
-                    }
+                    title = "Report an Issue",
+                    subtitle = "Found a bug? Help us fix it on GitHub",
+                    icon = Icons.Default.BugReport,
+                    onClick = { uriHandler.openUri("https://github.com/muhammad-fiaz/calculator-android/issues/new/choose") }
                 )
             }
         }
@@ -802,11 +834,11 @@ fun AboutScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val state by viewModel.settings.collectAsState()
     val uriHandler = LocalUriHandler.current
     val links = listOf<Triple<String, String, String>>(
-        Triple("GitHub Repository", "muhammad-fiaz/calculator-android", "https://github.com/muhammad-fiaz/calculator-android"),
-        Triple("Official Website", "muhammad-fiaz.github.io", BuildConfig.WEBSITE_URL),
-        Triple("Organization", "Fiaz Technologies", BuildConfig.ORG_WEBSITE_URL),
-        Triple("Developer Profile", "github.com/muhammad-fiaz", BuildConfig.DEVELOPER_GITHUB),
-        Triple("Source Code", "github.com/FiazTechnologies", BuildConfig.ORG_GITHUB)
+        Triple("GitHub Repository", "View the source code of this project on GitHub", "https://github.com/muhammad-fiaz/calculator-android"),
+        Triple("Developer's Website", "Visit the developer's personal website", BuildConfig.WEBSITE_URL),
+        Triple("Organization", "Learn more about Fiaz Technologies", BuildConfig.ORG_WEBSITE_URL),
+        Triple("GitHub Profile", "Explore the creator's projects and contributions", BuildConfig.DEVELOPER_GITHUB),
+        Triple("Organization GitHub Profile", "View our official organization repositories", BuildConfig.ORG_GITHUB)
     )
 
     Scaffold(topBar = {
@@ -871,12 +903,8 @@ fun LegalScreen(onBack: () -> Unit) {
 fun LicensesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val libraries by produceLibraries {
-        // Fallback: search for aboutlibraries in raw resources
         runCatching {
-            val resId = context.resources.getIdentifier("aboutlibraries", "raw", context.packageName)
-            if (resId != 0) {
-                context.resources.openRawResource(resId).bufferedReader().use { it.readText() }
-            } else ""
+            context.resources.openRawResource(dev.fiaz.calculator.R.raw.aboutlibraries).bufferedReader().use { it.readText() }
         }.getOrDefault("")
     }
     Scaffold(topBar = {
@@ -897,6 +925,15 @@ fun UnitConverterScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
 
     Scaffold(
         topBar = {
@@ -933,17 +970,51 @@ fun UnitConverterScreen(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Category", style = MaterialTheme.typography.titleMedium)
-                ScrollableTabRow(selectedTabIndex = uiState.categories.indexOf(uiState.selectedCategory), edgePadding = 0.dp, containerColor = Color.Transparent, divider = {}) {
+                PrimaryScrollableTabRow(selectedTabIndex = uiState.categories.indexOf(uiState.selectedCategory), edgePadding = 0.dp, containerColor = Color.Transparent, divider = {}) {
                     uiState.categories.forEach { category ->
-                        Tab(selected = uiState.selectedCategory == category, onClick = { viewModel.selectCategory(category) }, text = { Text(category.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                        Tab(
+                            selected = uiState.selectedCategory == category,
+                            onClick = {
+                                if (uiState.isHapticEnabled) {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                viewModel.selectCategory(category)
+                            },
+                            text = { Text(category.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                ConversionSection(label = "From", value = uiState.fromValue, unit = uiState.fromUnit, units = uiState.units, onValueChange = viewModel::onFromValueChanged, onUnitChange = viewModel::onFromUnitChanged)
+                ConversionSection(
+                    label = "From",
+                    value = uiState.fromValue,
+                    unit = uiState.fromUnit,
+                    units = uiState.units,
+                    onValueChange = viewModel::onFromValueChanged,
+                    onUnitChange = viewModel::onFromUnitChanged,
+                    isHapticEnabled = uiState.isHapticEnabled,
+                    focusRequester = focusRequester
+                )
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    FilledIconButton(onClick = { viewModel.swapUnits() }) { Icon(Icons.Default.SwapVert, contentDescription = "Swap") }
+                    FilledIconButton(
+                        onClick = {
+                            if (uiState.isHapticEnabled) {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            viewModel.swapUnits()
+                        }
+                    ) { Icon(Icons.Default.SwapVert, contentDescription = "Swap") }
                 }
-                ConversionSection(label = "To", value = uiState.toValue, unit = uiState.toUnit, units = uiState.units, onValueChange = {}, onUnitChange = viewModel::onToUnitChanged, readOnly = true)
+                ConversionSection(
+                    label = "To",
+                    value = uiState.toValue,
+                    unit = uiState.toUnit,
+                    units = uiState.units,
+                    onValueChange = {},
+                    onUnitChange = viewModel::onToUnitChanged,
+                    isHapticEnabled = uiState.isHapticEnabled,
+                    readOnly = true
+                )
             }
         }
     }
@@ -957,15 +1028,37 @@ private fun ConversionSection(
     units: List<UnitType>,
     onValueChange: (String) -> Unit,
     onUnitChange: (UnitType) -> Unit,
+    isHapticEnabled: Boolean,
+    focusRequester: FocusRequester? = null,
     readOnly: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).padding(16.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly, modifier = Modifier.weight(1f), textStyle = MaterialTheme.typography.headlineMedium.copy(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                readOnly = readOnly,
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+                textStyle = MaterialTheme.typography.headlineMedium.copy(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
+            )
             Box {
-                Surface(onClick = { expanded = true }, shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Surface(
+                    onClick = {
+                        if (isHapticEnabled) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        expanded = true
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
                     Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(unit?.symbol ?: "", fontWeight = FontWeight.Bold)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
@@ -973,7 +1066,16 @@ private fun ConversionSection(
                 }
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     units.forEach { u ->
-                        DropdownMenuItem(text = { Text("${u.name} (${u.symbol})") }, onClick = { onUnitChange(u); expanded = false })
+                        DropdownMenuItem(
+                            text = { Text("${u.name} (${u.symbol})") },
+                            onClick = {
+                                if (isHapticEnabled) {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                onUnitChange(u)
+                                expanded = false
+                            }
+                        )
                     }
                 }
             }

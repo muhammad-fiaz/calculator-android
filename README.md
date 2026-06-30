@@ -26,6 +26,7 @@ Calculator is your essential tool for all your mathematical needs. With a clean 
 ### Calculator Modes
 - **Standard Calculator**: Basic arithmetic operations with a clean, intuitive interface
 - **Scientific Calculator**: Advanced mathematical functions including trigonometry, logarithms, powers, and more
+- **Unit Converter**: Easily convert between different units (length, weight, volume, etc.)
 - **Expression Parsing**: Supports complex expressions with proper precedence handling like `(1+1)*2/2+(8*8)`
 
 ### User Experience

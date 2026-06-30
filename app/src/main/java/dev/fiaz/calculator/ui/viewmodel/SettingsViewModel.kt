@@ -15,6 +15,7 @@ import dev.fiaz.calculator.domain.model.AppSettings
 import dev.fiaz.calculator.domain.model.AppThemeMode
 import dev.fiaz.calculator.domain.model.CalculatorMode
 import dev.fiaz.calculator.domain.repository.AppSettingsRepository
+import dev.fiaz.calculator.ui.state.SettingsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,8 +30,8 @@ class SettingsViewModel @Inject constructor(
     private val reviewManager: ReviewManager,
     val updateManager: AppUpdateManager
 ) : ViewModel() {
-    private val _settings = MutableStateFlow(SettingsScreenState())
-    val settings: StateFlow<SettingsScreenState> = _settings.asStateFlow()
+    private val _settings = MutableStateFlow(SettingsUiState())
+    val settings: StateFlow<SettingsUiState> = _settings.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -102,10 +103,3 @@ class SettingsViewModel @Inject constructor(
             .startChooser()
     }
 }
-
-data class SettingsScreenState(
-    val appSettings: AppSettings = AppSettings(),
-    val versionName: String = BuildConfig.VERSION_NAME,
-    val versionCode: Long = BuildConfig.VERSION_CODE.toLong(),
-    val updateInProgress: Boolean = false
-)

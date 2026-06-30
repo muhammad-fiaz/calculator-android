@@ -197,8 +197,15 @@ class CalculatorViewModel @Inject constructor(
 
     private fun commitResult() {
         val state = _uiState.value
+        if (state.errorMessage != null) {
+            _uiState.update {
+                it.copy(
+                    justEvaluated = true
+                )
+            }
+            return
+        }
         if (state.result.isBlank()) return
-        if (state.errorMessage != null) return
 
         viewModelScope.launch {
             historyRepository.insert(state.expression, state.result, System.currentTimeMillis())
@@ -211,10 +218,6 @@ class CalculatorViewModel @Inject constructor(
                 cursorPosition = state.result.length
             )
         }
-        // Note: recalculate() will be called internally if we were using a separate observer, 
-        // but here we manually call it or let the next state update handle it.
-        // Actually, recalculate() is called at the end of most public methods.
-        // In this case, we want the "result" to be the new "expression".
     }
 
     private fun recalculate() {

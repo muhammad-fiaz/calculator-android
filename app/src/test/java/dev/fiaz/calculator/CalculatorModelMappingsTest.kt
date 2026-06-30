@@ -29,7 +29,7 @@ class CalculatorModelMappingsTest {
 
         assertEquals(AppThemeMode.System, settings.theme)
         assertEquals(true, settings.hapticsEnabled)
-        assertEquals(true, settings.vibrationEnabled)
+        assertEquals(0, settings.calculationCount)
         assertEquals(CalculatorMode.Normal, settings.defaultMode)
     }
 }

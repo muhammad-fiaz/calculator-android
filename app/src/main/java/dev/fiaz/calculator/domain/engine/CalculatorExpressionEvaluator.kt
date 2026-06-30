@@ -52,8 +52,14 @@ class CalculatorExpressionEvaluator {
                     index++
                 }
                 current == 'e' -> {
-                    tokens += Token.Number(Math.E)
-                    index++
+                    if (index + 1 < input.length && input[index + 1].isLetter()) {
+                        val start = index
+                        while (index < input.length && input[index].isLetter()) index++
+                        tokens += Token.Function(input.substring(start, index).lowercase())
+                    } else {
+                        tokens += Token.Number(Math.E)
+                        index++
+                    }
                 }
                 current.isLetter() -> {
                     val start = index

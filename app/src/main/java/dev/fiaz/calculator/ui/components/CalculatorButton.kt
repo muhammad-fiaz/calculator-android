@@ -26,10 +26,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.graphics.vector.ImageVector
+
 @Composable
 fun CalculatorButton(
     label: String,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
@@ -67,11 +70,20 @@ fun CalculatorButton(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = label,
-                style = textStyle.copy(fontWeight = FontWeight.Medium),
-                color = contentColor
-            )
+            if (icon != null) {
+                androidx.compose.material3.Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.padding(12.dp)
+                )
+            } else {
+                Text(
+                    text = label,
+                    style = textStyle.copy(fontWeight = FontWeight.Medium),
+                    color = contentColor
+                )
+            }
         }
     }
 }
